@@ -13,7 +13,7 @@ import {
 import { Edit, Save, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
-const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) => {
+const EditableDataTable = ({ data, onDataUpdate, title = "Daily Statistics & Legacy Data" }) => {
   const [editingRows, setEditingRows] = useState(new Set());
   const [editValues, setEditValues] = useState({});
   const [sortBy, setSortBy] = useState('date');
@@ -37,10 +37,10 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
     };
   }, [editingRows.size]);
 
-  // Filter data to only show entries with manual data (meetings, shows, offersMade, closes, cashCollected, revenue)
+  // Filter data to only show entries with statistics or legacy manual data
   const manualDataEntries = data.filter(entry => 
-    entry.meetings > 0 || entry.shows > 0 || entry.offersMade > 0 || 
-    entry.closes > 0 || entry.cashCollected > 0 || entry.revenue > 0
+    entry.meetings > 0 || entry.shows > 0 || entry.conversations > 0 ||
+    entry.offersMade > 0 || entry.closes > 0 || entry.cashCollected > 0 || entry.revenue > 0
   );
 
   // Sort the data
@@ -74,6 +74,7 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
         ...prev,
         [date]: {
           meetings: entry.meetings || 0,
+          conversations: entry.conversations || 0,
           shows: entry.shows || 0,
           offersMade: entry.offersMade || 0,
           closes: entry.closes || 0,
@@ -109,6 +110,7 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
     const deleteData = {
       date: dateToDelete,
       meetings: 0,
+      conversations: 0,
       shows: 0,
       offersMade: 0,
       closes: 0,
@@ -149,6 +151,7 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
     const updateData = {
       date,
       meetings: parseInt(editedValues.meetings) || 0,
+      conversations: parseInt(editedValues.conversations) || 0,
       shows: parseInt(editedValues.shows) || 0,
       offersMade: parseInt(editedValues.offersMade) || 0,
       closes: parseInt(editedValues.closes) || 0,
@@ -232,14 +235,14 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
           {title}
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Editable table showing all manual data entries. Click Edit to modify values.
+          Editable table showing daily statistics and legacy manual data entries. Click Edit to modify values.
         </p>
       </CardHeader>
       <CardContent>
         {sortedData.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>No manual data entries found.</p>
-            <p className="text-xs mt-1">Add data using the Manual Data Entry section above.</p>
+            <p>No statistics or legacy data entries found.</p>
+            <p className="text-xs mt-1">Add statistics using the Daily Statistics form above.</p>
           </div>
         ) : (
           <div className="overflow-x-auto" ref={tableRef}>
@@ -257,6 +260,12 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
                     onClick={() => handleSort('meetings')}
                   >
                     Meetings {getSortIcon('meetings')}
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 text-center"
+                    onClick={() => handleSort('conversations')}
+                  >
+                    Conversations {getSortIcon('conversations')}
                   </TableHead>
                   <TableHead 
                     className="cursor-pointer hover:bg-muted/50 text-center"
@@ -301,6 +310,9 @@ const EditableDataTable = ({ data, onDataUpdate, title = "Manual Entry Data" }) 
                       </TableCell>
                       <TableCell className="text-center">
                         {renderCell(entry, 'meetings', isEditing)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {renderCell(entry, 'conversations', isEditing)}
                       </TableCell>
                       <TableCell className="text-center">
                         {renderCell(entry, 'shows', isEditing)}

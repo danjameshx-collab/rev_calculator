@@ -16,6 +16,7 @@ import {
 
 import MetricCard from './MetricCard';
 import EditableDataTable from './EditableDataTable';
+import SaleEntriesTable from './SaleEntriesTable';
 import DataInput from './DataInput';
 import CampaignTable from './CampaignTable';
 import CSVImport from './CSVImport';
@@ -254,7 +255,30 @@ const Dashboard = () => {
 
   const handleDataSubmit = (newEntry) => {
     try {
-      if (newEntry.isEdit) {
+      if (newEntry.isStats) {
+        // Handle statistics submission
+        const existingData = dataManager.getDailyData();
+        const existingEntry = existingData.find(entry => entry.date === newEntry.date);
+        
+        const dataToSave = {
+          ...existingEntry,
+          meetings: (existingEntry?.meetings || 0) + (newEntry.meetings || 0),
+          conversations: (existingEntry?.conversations || 0) + (newEntry.conversations || 0),
+          shows: (existingEntry?.shows || 0) + (newEntry.shows || 0)
+        };
+
+        const { dailyData } = dataManager.saveManualEntry(newEntry.date, dataToSave);
+        
+        const updatedData = {
+          ...data,
+          dailyData: dailyData,
+          currentMetrics: calculateMetricsFromDailyData(dailyData)
+        };
+
+        saveData(updatedData);
+        setLastUpdated(new Date());
+        
+      } else if (newEntry.isEdit) {
         // Edit mode: replace the values (or delete if isDelete is true)
         const { dailyData } = dataManager.saveManualEntry(newEntry.date, {
           meetings: newEntry.meetings,
@@ -279,19 +303,37 @@ const Dashboard = () => {
         
         // Manual entry updated successfully
       } else {
-        // Add mode: add to existing values (additive behavior)
+        // Handle sale entry submission
         const existingData = dataManager.getDailyData();
         const existingEntry = existingData.find(entry => entry.date === newEntry.date);
         
+        // Create sale entry object
+        const saleEntry = {
+          date: newEntry.date,
+          description: newEntry.description,
+          revenue: newEntry.revenue,
+          cashCollected: newEntry.cashCollected,
+          hadMeeting: newEntry.hadMeeting,
+          isCustomJob: newEntry.isCustomJob,
+          isNewClient: newEntry.isNewClient,
+          timestamp: new Date().toISOString()
+        };
+
+        // Store sale entry separately
+        const salesKey = `sales_${currentUser.username || 'default'}`;
+        const existingSales = JSON.parse(localStorage.getItem(salesKey) || '[]');
+        existingSales.push(saleEntry);
+        localStorage.setItem(salesKey, JSON.stringify(existingSales));
+
+        // Update daily data with aggregated values
         const dataToSave = {
-          meetings: (existingEntry?.meetings || 0) + (newEntry.meetings || 0),
-          offersMade: (existingEntry?.offersMade || 0) + (newEntry.offersMade || 0),
-          closes: (existingEntry?.closes || 0) + (newEntry.closes || 0),
+          ...existingEntry,
           cashCollected: (existingEntry?.cashCollected || 0) + (newEntry.cashCollected || 0),
           revenue: (existingEntry?.revenue || existingEntry?.totalRevenue || 0) + (newEntry.revenue || 0),
           recurringRevenue: newEntry.recurringRevenue || 0,
           newRevenue: (existingEntry?.revenue || existingEntry?.totalRevenue || 0) + (newEntry.revenue || 0),
-          totalRevenue: (existingEntry?.revenue || existingEntry?.totalRevenue || 0) + (newEntry.revenue || 0)
+          totalRevenue: (existingEntry?.revenue || existingEntry?.totalRevenue || 0) + (newEntry.revenue || 0),
+          closes: (existingEntry?.closes || 0) + (newEntry.revenue > 0 ? 1 : 0) // Count as close if revenue > 0
         };
 
         const { dailyData } = dataManager.saveManualEntry(newEntry.date, dataToSave);
@@ -611,12 +653,17 @@ const Dashboard = () => {
           />
         </div>
 
+        {/* Sale Entries Table */}
+        <div className="w-full">
+          <SaleEntriesTable currentUser={currentUser} />
+        </div>
+
         {/* Editable Data Table */}
         <div className="w-full">
           <EditableDataTable 
             data={filteredData.dailyData} 
             onDataUpdate={handleDataSubmit}
-            title={`Editable Manual Entry Data - ${dateRange.replace(/([A-Z])/g, ' $1').toLowerCase()}`}
+            title={`Daily Statistics & Legacy Data - ${dateRange.replace(/([A-Z])/g, ' $1').toLowerCase()}`}
           />
         </div>
 
