@@ -43,10 +43,13 @@ export class CSVProcessor {
       // Step 2: Validate required columns
       this.validateColumns(headers);
 
-      // Step 3: Clean and filter rows
+      // Step 3: CRITICAL - Validate daily data format
+      this.validateDailyDataFormat(rows, headers);
+
+      // Step 4: Clean and filter rows
       const cleanRows = this.cleanRows(rows, headers);
 
-      // Step 4: Transform data
+      // Step 5: Transform data
       const processedData = this.transformData(cleanRows, headers);
 
       // CSV processing complete
@@ -144,6 +147,128 @@ export class CSVProcessor {
     }
 
     // Column validation passed
+  }
+
+  /**
+   * CRITICAL: Validate that CSV contains daily data, not aggregated data
+   */
+  validateDailyDataFormat(rows, headers) {
+    const issues = [];
+    const validRows = rows.filter(row => row['Campaign name'] && row['Campaign name'].trim() !== '');
+    
+    if (validRows.length === 0) {
+      throw new Error('No valid data rows found in CSV');
+    }
+
+    // 1. DATE FORMAT VALIDATION
+    const dateColumn = 'Reporting starts';
+    const reportingEndsColumn = 'Reporting ends';
+    
+    let dateRangesDetected = 0;
+    let invalidDates = 0;
+    const dates = [];
+    
+    for (const row of validRows.slice(0, 10)) { // Check first 10 rows
+      const startDate = row[dateColumn];
+      const endDate = row[reportingEndsColumn];
+      
+      if (!startDate) continue;
+      
+      // Check for date range format (aggregated data indicator)
+      if (startDate.includes(' - ') || startDate.includes(' to ')) {
+        dateRangesDetected++;
+        issues.push(`❌ Date range detected: "${startDate}" - This indicates aggregated data`);
+      }
+      
+      // Check if start and end dates are different (aggregated data indicator)
+      if (endDate && startDate !== endDate) {
+        dateRangesDetected++;
+        issues.push(`❌ Date range detected: "${startDate}" to "${endDate}" - This indicates aggregated data`);
+      }
+      
+      // Validate single date format
+      if (!startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        invalidDates++;
+        issues.push(`❌ Invalid date format: "${startDate}" - Expected YYYY-MM-DD`);
+      } else {
+        dates.push(startDate);
+      }
+    }
+
+    // 2. ROW COUNT VALIDATION
+    if (validRows.length < 3) {
+      issues.push(`❌ Too few rows (${validRows.length}) - Daily data typically has 7+ rows for a week`);
+    }
+
+    // 3. DATE SEQUENCE VALIDATION
+    if (dates.length >= 2) {
+      const uniqueDates = [...new Set(dates)].sort();
+      const daysBetween = (new Date(uniqueDates[uniqueDates.length - 1]) - new Date(uniqueDates[0])) / (1000 * 60 * 60 * 24);
+      
+      if (uniqueDates.length === 1 && validRows.length > 5) {
+        issues.push(`❌ All rows have same date (${uniqueDates[0]}) but ${validRows.length} rows exist - This suggests aggregated data`);
+      }
+      
+      if (uniqueDates.length < validRows.length / 3) {
+        issues.push(`❌ Too few unique dates (${uniqueDates.length}) for ${validRows.length} rows - Possible aggregated or summary data`);
+      }
+
+      // Check for suspicious large gaps
+      if (daysBetween > validRows.length * 2) {
+        issues.push(`❌ Large date range (${Math.round(daysBetween)} days) with few rows (${validRows.length}) - Possible aggregated data`);
+      }
+    }
+
+    // 4. DATA DISTRIBUTION CHECK
+    const spends = validRows.slice(0, 5).map(row => parseFloat(row['Amount spent (USD)'] || 0)).filter(s => s > 0);
+    if (spends.length >= 3) {
+      const allSame = spends.every(spend => spend === spends[0]);
+      const veryRound = spends.filter(spend => spend % 10 === 0 && spend > 100).length;
+      
+      if (allSame && spends[0] > 50) {
+        issues.push(`❌ All spend amounts identical ($${spends[0]}) - Suspicious for daily data`);
+      }
+      
+      if (veryRound >= spends.length * 0.8) {
+        issues.push(`⚠️ Most spend amounts are round numbers - Could indicate aggregated data`);
+      }
+    }
+
+    // 5. CRITICAL ERROR CONDITIONS
+    const criticalErrors = issues.filter(issue => issue.startsWith('❌'));
+    
+    if (dateRangesDetected > 0) {
+      const errorMsg = `🚨 AGGREGATED DATA DETECTED\n\n` +
+        `This CSV appears to contain aggregated data, not daily breakdowns.\n\n` +
+        `❌ Issues Found:\n${issues.join('\n')}\n\n` +
+        `💡 How to Fix:\n` +
+        `1. Go back to Facebook Ads Manager\n` +
+        `2. When exporting, select "Breakdown by: Day"\n` +
+        `3. Make sure date range shows individual days\n` +
+        `4. Re-export and try again\n\n` +
+        `⚠️ Importing aggregated data will break daily tracking and analytics.`;
+      
+      throw new Error(errorMsg);
+    }
+    
+    if (criticalErrors.length >= 3) {
+      const errorMsg = `🚨 DATA VALIDATION FAILED\n\n` +
+        `Multiple issues suggest this is not daily breakdown data:\n\n` +
+        `${criticalErrors.join('\n')}\n\n` +
+        `💡 Please ensure you've exported with "Breakdown by: Day" selected.`;
+      
+      throw new Error(errorMsg);
+    }
+
+    // 6. WARNINGS (non-blocking)
+    const warnings = issues.filter(issue => issue.startsWith('⚠️'));
+    if (warnings.length > 0) {
+      this.warnings.push(...warnings);
+      console.warn('⚠️ Data validation warnings:', warnings);
+    }
+
+    // Daily data validation passed
+    console.log('✅ Daily data format validation passed');
   }
 
   /**

@@ -20,6 +20,7 @@ const CSVImport = ({ onDataImport, onClose }) => {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState(null);
   const [processingStats, setProcessingStats] = useState(null);
+  const [validationWarnings, setValidationWarnings] = useState([]);
 
   const parseCSV = (csvText) => {
     const lines = csvText.split('\n').filter(line => line.trim());
@@ -54,6 +55,13 @@ const CSVImport = ({ onDataImport, onClose }) => {
         setCsvData(parsed);
         setPreview(parsed.rows.slice(0, 5)); // Show first 5 rows
         
+        // Quick validation preview (non-blocking)
+        const validationPreview = validateDataPreview(parsed.rows, parsed.headers);
+        setValidationWarnings(validationPreview.warnings);
+        if (validationPreview.warnings.length > 0) {
+          console.warn('⚠️ Data preview warnings:', validationPreview.warnings);
+        }
+        
         // Note: Column mapping is now handled automatically by CSVProcessor
       } catch (err) {
         setError('Error parsing CSV file: ' + err.message);
@@ -61,6 +69,26 @@ const CSVImport = ({ onDataImport, onClose }) => {
     };
     reader.readAsText(uploadedFile);
   }, []);
+
+  const validateDataPreview = (rows, headers) => {
+    const warnings = [];
+    const validRows = rows.filter(row => row['Campaign name'] && row['Campaign name'].trim() !== '');
+    
+    // Quick checks for preview
+    if (validRows.length < 5) {
+      warnings.push(`Only ${validRows.length} data rows found - might be aggregated data`);
+    }
+    
+    // Check first few dates
+    const dates = validRows.slice(0, 3).map(row => row['Reporting starts']).filter(d => d);
+    const hasDateRanges = dates.some(date => date.includes(' - ') || date.includes(' to '));
+    
+    if (hasDateRanges) {
+      warnings.push('Date ranges detected - this looks like aggregated data');
+    }
+    
+    return { warnings };
+  };
 
 
   const handleDrop = useCallback((e) => {
@@ -163,8 +191,11 @@ const CSVImport = ({ onDataImport, onClose }) => {
                 <h3 className="text-lg font-medium text-foreground mb-2">
                   Upload Facebook Ads CSV
                 </h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-muted-foreground mb-2">
                   Drag and drop your CSV file here, or click to browse
+                </p>
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-4 font-medium">
+                  ⚠️ Important: Export with "Breakdown by: Day" selected
                 </p>
                 <Button variant="outline">
                   Choose File
@@ -184,7 +215,7 @@ const CSVImport = ({ onDataImport, onClose }) => {
                   <span className="text-sm font-medium text-foreground">Need a sample CSV format?</span>
                 </div>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Download a sample CSV to see the expected format for Facebook Ads data.
+                  Download a sample CSV to see the expected format for Facebook Ads data with daily breakdown.
                 </p>
                 <Button variant="outline" size="sm" onClick={downloadSampleCSV}>
                   <Download className="h-3 w-3 mr-1" />
@@ -212,17 +243,63 @@ const CSVImport = ({ onDataImport, onClose }) => {
                 setPreview(null);
                 setError(null);
                 setProcessingStats(null);
+                setValidationWarnings([]);
               }}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
           )}
 
+          {/* Validation Warnings */}
+          {validationWarnings.length > 0 && !error && (
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">
+                    ⚠️ Data Format Warning
+                  </h4>
+                  <div className="text-yellow-800 dark:text-yellow-200 text-sm space-y-1">
+                    {validationWarnings.map((warning, index) => (
+                      <div key={index}>• {warning}</div>
+                    ))}
+                  </div>
+                  <div className="mt-3 text-xs text-yellow-700 dark:text-yellow-300">
+                    <strong>Recommendation:</strong> Make sure you exported with "Breakdown by: Day" selected for accurate daily tracking.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Error Display */}
           {error && (
-            <div className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-              <p className="text-red-900 dark:text-red-100">{error}</p>
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-red-900 dark:text-red-100 mb-2">
+                    Import Failed
+                  </h4>
+                  <div className="text-red-800 dark:text-red-200 text-sm whitespace-pre-line">
+                    {error}
+                  </div>
+                  {error.includes('AGGREGATED DATA DETECTED') && (
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                      <h5 className="font-medium text-blue-900 dark:text-blue-100 text-sm mb-2">
+                        📋 Quick Fix Guide:
+                      </h5>
+                      <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
+                        <li>Go to Facebook Ads Manager</li>
+                        <li>Click "Export" → "Export Table Data"</li>
+                        <li>Select "Breakdown by: Day" (this is the key step!)</li>
+                        <li>Choose your date range</li>
+                        <li>Download and try importing again</li>
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
