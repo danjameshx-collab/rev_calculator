@@ -19,7 +19,7 @@ function App() {
   // Plan configurations
   const planConfigs = {
     authority: {
-      label: 'Authority - 8 Videos 8 Lead Magnets 16 Emails',
+      label: 'Authority - 8 Videos, 8 Lead Magnets & 16 Emails',
       multiplier: 3.5,
       monthlyInvestment: 7000,
       videos: 8,
@@ -27,7 +27,7 @@ function App() {
       emails: 16
     },
     growth: {
-      label: 'Growth - 4 Videos 4 Lead Magnets 16 Emails',
+      label: 'Growth - 4 Videos, 4 Lead Magnets & 16 Emails',
       multiplier: 2.0,
       monthlyInvestment: 3000,
       videos: 4,
@@ -152,7 +152,7 @@ function App() {
                 </Select>
               </div>
 
-              <div>
+              <div className="hidden">
                 <Label htmlFor="monthly-investment" className="text-sm font-medium text-gray-700">Monthly Investment</Label>
                 <div className="relative mt-1">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
