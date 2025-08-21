@@ -164,7 +164,7 @@ function App() {
                     className="pl-8"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Monthly cost automatically filled based on your selected plan</p>
+                <p className="text-xs text-gray-500 mt-1">Monthly cost automaticalssssly filled based on your selected plan</p>
               </div>
 
               <div>
