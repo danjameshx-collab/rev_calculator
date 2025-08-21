@@ -134,7 +134,7 @@ function App() {
             <CardHeader className="bg-blue-50 border-b">
               <CardTitle className="flex items-center gap-2 text-blue-700">
                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                Content Parameters
+                Content Psaarametersasasass
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
